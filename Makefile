@@ -1,9 +1,9 @@
 EXTRA_CFLAGS = 
 #RUN = ./cache astar 64 1024 1
-RUN = ./cache astar 64 1 1024 1 4
+#RUN = ./cache astar 64 1 1024 1 4
 #RUN = ./cache astar 64 8 128
 #RUN = ./cache astar 64 2 512
-#RUN = 
+RUN = 
 
 all:	cache
 	@$(RUN)
