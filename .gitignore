@@ -3,3 +3,4 @@
 *.o
 astar
 bzip2
+cache

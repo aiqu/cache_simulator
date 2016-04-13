@@ -168,7 +168,6 @@ void do_simulation(const char* input_file){
 	fclose(input);
 }
 
-int count = 1;
 void cache_access(int types, uint64_t addr){
 	uint64_t tag = bitsplit(addr, ADDR_SIZE - tag_length, ADDR_SIZE-1);
 	uint64_t word_index = bitsplit(addr, 0, word_index_length - 1);
@@ -196,21 +195,18 @@ void cache_access(int types, uint64_t addr){
 	if(!found){
 #ifdef STREAMBUFFER
 		if(do_streambuffer(tag, set_index, word_index))
-			return;
+			goto finish;
 #endif
 #ifdef VICTIMCACHE
 		if(do_victimcache(tag, set_index, word_index)){
-			return;
+			goto finish;
 		}
 #endif
 		main_cache.set[set_index].miss_count++;
 		fetch(tag, set_index, word_index);
 	}
-/*	if(count >= 5162400 && count <= 5162800)
-		printf("%d\t%16lx %16lx %16lx\n", count++, tag, set_index, word_index);
-	else
-		count++;*/
-	/*printf("%d %lu %lu\n", found, tag, set_index);*/
+finish:
+	return;
 }
 #ifdef STREAMBUFFER
 int do_streambuffer(uint64_t tag, uint64_t set_index, uint64_t word_index){
@@ -223,6 +219,7 @@ int do_streambuffer(uint64_t tag, uint64_t set_index, uint64_t word_index){
 		put_victimcache(addr);
 #endif
 		cur->tag = tag;
+		cur->valid = 1;
 		fetch_streambuffer(addr, 0);
 		cur->hit_count++;
 		streambuffer_hit++;
@@ -237,12 +234,12 @@ void fetch_streambuffer(uint64_t addr, int refresh_all){
 		int i;
 		uint64_t tag;
 		for(i = 0;i < number_of_streambuffer_entry;i++){
-			addr += 8 * byte_per_line;
+			addr += byte_per_line;
 			tag = bitsplit(addr, ADDR_SIZE - streambuffer_tag_length, ADDR_SIZE-1);
 			streambuffer[i].tag = tag;
 		}
 	}else{
-		addr += 8 * byte_per_line * number_of_streambuffer_entry;
+		addr += byte_per_line * number_of_streambuffer_entry;
 		int i;
 		for(i = 1;i < number_of_streambuffer_entry;i++)
 			swap_cline(&streambuffer[i], &streambuffer[i-1]);
@@ -257,9 +254,10 @@ int do_victimcache(uint64_t tag, uint64_t set_index, uint64_t word_index){
 	uint64_t addr = bitmerge(tag, set_index, word_index);
 	uint64_t v_tag = bitsplit(addr, ADDR_SIZE-victimcache_tag_length, ADDR_SIZE-1);
 	int i;
-	for(i = 0;i < number_of_victimcache_entry;i++)
+	for(i = 0;i < number_of_victimcache_entry;i++){
 		if(victimcache[i].tag == v_tag)
 			break;
+	}
 
 	if(i == number_of_victimcache_entry){
 		victimcache_miss++;
@@ -270,6 +268,7 @@ int do_victimcache(uint64_t tag, uint64_t set_index, uint64_t word_index){
 		temp.tag = cur->tag;
 		temp.data = cur->data;
 		cur->tag = tag;
+		cur->valid = 1;
 		cur->data = victimcache[i].data;
 
 		uint64_t tmp_addr = bitmerge(temp.tag, set_index, word_index);
@@ -282,7 +281,6 @@ int do_victimcache(uint64_t tag, uint64_t set_index, uint64_t word_index){
 	}
 }
 void put_victimcache(uint64_t addr){
-	//printf("put_victimcache %10lx\n", addr);
 	int i, idx;
 	for(i = 0;i < number_of_victimcache_entry;i++)
 		if(victimcache[i].valid == 0)
@@ -380,7 +378,6 @@ uint64_t bitsplit(uint64_t value, int from, int to){
 		mask |= bit;
 		bit = bit << 1;
 	}
-	//printf("value: %lx\tfrom: %d\tto: %d\tmask: %lx\tresult%lx\n", value, from, to, mask, ( value & mask ) >> from);
 	return ( value & mask ) >> from;
 }
 uint64_t bitmerge(uint64_t tag, uint64_t set_index, uint64_t word_index){
