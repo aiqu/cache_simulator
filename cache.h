@@ -7,12 +7,6 @@
 #define WORD_SIZE	1	//byte, basic block size
 #define INPUT_FILE	"astar"
 
-unsigned int byte_per_line = 0;
-unsigned int line_per_set = 0;
-unsigned int number_of_set = 0;
-unsigned int word_index_length = 0;
-unsigned int tag_length = 0;
-unsigned int set_index_length = 0;
 
 //statistics
 unsigned int ir_count = 0;
@@ -40,7 +34,23 @@ typedef struct cache_impl{
 	unsigned int L;
 	unsigned int K;
 	unsigned int N;
+	unsigned int word_index_length;
+	unsigned int tag_length;
+	unsigned int set_index_length;
 	void *lower_cache;
+#ifdef STREAMBUFFER
+	cline *streambuffer;
+	unsigned int streambuffer_tag_length;
+	unsigned int streambuffer_hit;
+	unsigned int streambuffer_miss;
+#endif
+#ifdef VICTIMBUFFER
+	cline *victimbuffer;
+	int *victimbuffer_lru;
+	unsigned int victimbuffer_tag_length;
+	unsigned int victimbuffer_hit;
+	unsigned int victimbuffer_miss;
+#endif
 } cache;
 
 cache L1_dcache, L1_icache;
@@ -56,32 +66,23 @@ void cache_access(cache *target, uint64_t addr);
 void cache_access_impl(cache *target, uint64_t, uint64_t, uint64_t);
 void fetch(cache*, uint64_t, uint64_t, uint64_t);
 uint64_t bitsplit(uint64_t value, int from, int to);
-uint64_t bitmerge(uint64_t tag, uint64_t set_index, uint64_t word_index);
+uint64_t bitmerge(cache*, uint64_t tag, uint64_t set_index, uint64_t word_index);
 void print_result();
 void print_cache(cache*);
-void print_extra_component();
+void print_extra_component(cache*);
 void swap_cline(cline *from, cline *to);
 void update_lru(int *lru, int index, unsigned int length);
 
 #ifdef STREAMBUFFER
-cline *streambuffer;
-unsigned int number_of_streambuffer_entry = 0;
-unsigned int streambuffer_tag_length = 0;
-unsigned int streambuffer_hit = 0;
-unsigned int streambuffer_miss = 0;
+unsigned int number_of_streambuffer_entry;
 int do_streambuffer(cache *target, uint64_t, uint64_t, uint64_t);
 void fetch_streambuffer(cache*, uint64_t, int);
 #endif
 
-#ifdef VICTIMCACHE
-cline *victimcache;
-int *victimcache_lru;
-unsigned int number_of_victimcache_entry = 0;
-unsigned int victimcache_tag_length = 0;
-unsigned int victimcache_hit = 0;
-unsigned int victimcache_miss = 0;
-int do_victimcache(cache*, uint64_t, uint64_t, uint64_t);
-void put_victimcache(uint64_t);
+#ifdef VICTIMBUFFER
+unsigned int number_of_victimbuffer_entry;
+int do_victimbuffer(cache*, uint64_t, uint64_t, uint64_t);
+void put_victimbuffer(cache*, uint64_t);
 #endif
 
 #endif

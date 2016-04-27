@@ -8,7 +8,7 @@
 int main(int argc, char* argv[]){
 	if(argc < 5){
 input_error:
-		printf("Usage : \n./cache INPUT_FILE L K N [streambuffer_entry_num] [victimcache_entry_num]\n");
+		printf("Usage : \n./mcache INPUT_FILE [for L1 instruction cache L K N] [for L1 data cache L K N] [for L2 cache L K N] [streambuffer_entry_num] [victimbuffer_entry_num]\n");
 		return 0;
 	}
 
@@ -16,23 +16,19 @@ input_error:
 	srand(time(NULL));
 #endif
 
-	byte_per_line = atoi(argv[2]);
-	line_per_set = atoi(argv[3]);
-	number_of_set = atoi(argv[4]);
-
 #ifdef STREAMBUFFER
 	if(argc > 5){
-		number_of_streambuffer_entry = atoi(argv[5]);
+		number_of_streambuffer_entry = atoi(argv[11]);
 		if(number_of_streambuffer_entry < 1)
 			goto input_error;
 	}else
 		goto input_error;
 #endif
 
-#ifdef VICTIMCACHE
+#ifdef VICTIMBUFFER
 	if(argc > 6){
-		number_of_victimcache_entry = atoi(argv[6]);
-		if(number_of_victimcache_entry < 1)
+		number_of_victimbuffer_entry = atoi(argv[12]);
+		if(number_of_victimbuffer_entry < 1)
 			goto input_error;
 	}else
 		goto input_error;
@@ -43,14 +39,14 @@ input_error:
 #ifdef STREAMBUFFER
 	printf("Streambuffer size: %d\n", number_of_streambuffer_entry);
 #endif
-#ifdef VICTIMCACHE
-	printf("Victim cache size; %d\n", number_of_victimcache_entry);
+#ifdef VICTIMBUFFER
+	printf("Victim cache size; %d\n", number_of_victimbuffer_entry);
 #endif
 #endif
 
-	initialize_cache(&L1_icache, 64, 1, 512);
-	initialize_cache(&L1_dcache, 64, 1, 512);
-	initialize_cache(&L2_cache, byte_per_line, line_per_set, number_of_set);
+	initialize_cache(&L1_icache, atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
+	initialize_cache(&L1_dcache, atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
+	initialize_cache(&L2_cache, atoi(argv[8]), atoi(argv[9]), atoi(argv[10]));
 	L1_icache.lower_cache = &L2_cache;
 	L1_dcache.lower_cache = &L2_cache;
 	L2_cache.lower_cache = NULL;
@@ -78,17 +74,20 @@ void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned 
 	target->L = _L;
 	target->K = _K;
 	target->N = _N;
+	target->word_index_length = 0;
+	target->tag_length = 0;
+	target->set_index_length = 0;
 
 	int i,j;
 	int word_index_size = _L / WORD_SIZE;
 	int nofset = _N;
 	while(word_index_size = word_index_size >> 1)
-		word_index_length++;
+		target->word_index_length++;
 	while(nofset = nofset >> 1)
-		set_index_length++;
-	tag_length = ADDR_SIZE - set_index_length - word_index_length;
+		target->set_index_length++;
+	target->tag_length = ADDR_SIZE - target->set_index_length - target->word_index_length;
 #ifdef DEBUG
-	printf("tag: %u, set: %u, word: %u\n", tag_length, set_index_length, word_index_length);
+	printf("tag: %u, set: %u, word: %u\n", target->tag_length, target->set_index_length, target->word_index_length);
 #endif
 
 	target->set = calloc(_N, sizeof(cset));
@@ -109,25 +108,25 @@ void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned 
 
 #ifdef STREAMBUFFER
 	if(is_dcache){
-		streambuffer = calloc(number_of_streambuffer_entry, sizeof(cline));
+		target->streambuffer = calloc(number_of_streambuffer_entry, sizeof(cline));
 		for(i = 0;i < number_of_streambuffer_entry;i++)
-			streambuffer[i].data = malloc(_L);
-		streambuffer_tag_length = ADDR_SIZE - word_index_length;
+			target->streambuffer[i].data = malloc(_L);
+		target->streambuffer_tag_length = ADDR_SIZE - target->word_index_length;
 	}else{
-		streambuffer = NULL;
+		target->streambuffer = NULL;
 	}
 #endif
-#ifdef VICTIMCACHE
+#ifdef VICTIMBUFFER
 	if(is_dcache){
-		victimcache = calloc(number_of_victimcache_entry, sizeof(cline));
-		for(i = 0;i < number_of_victimcache_entry;i++)
-			victimcache[i].data = malloc(_L);
-		victimcache_tag_length = ADDR_SIZE - word_index_length;
-		victimcache_lru = calloc(number_of_victimcache_entry, sizeof(int));
-		memset(victimcache_lru, -1, number_of_victimcache_entry*sizeof(int));
+		target->victimbuffer = calloc(number_of_victimbuffer_entry, sizeof(cline));
+		for(i = 0;i < number_of_victimbuffer_entry;i++)
+			target->victimbuffer[i].data = malloc(_L);
+		target->victimbuffer_tag_length = ADDR_SIZE - target->word_index_length;
+		target->victimbuffer_lru = calloc(number_of_victimbuffer_entry, sizeof(int));
+		memset(target->victimbuffer_lru, -1, number_of_victimbuffer_entry*sizeof(int));
 	}else{
-		victimcache = NULL;
-		victimcache_lru = NULL;
+		target->victimbuffer = NULL;
+		target->victimbuffer_lru = NULL;
 	}
 #endif
 }
@@ -147,18 +146,18 @@ void free_cache(cache *target){
 	}
 	free(target->set);
 #ifdef STREAMBUFFER
-	if(streambuffer){
+	if(target->streambuffer){
 		for(i = 0;i < number_of_streambuffer_entry;i++)
-			free(streambuffer[i].data);
-		free(streambuffer);
+			free(target->streambuffer[i].data);
+		free(target->streambuffer);
 	}
 #endif
-#ifdef VICTIMCACHE
-	if(victimcache){
-		for(i = 0;i < number_of_victimcache_entry;i++)
-			free(victimcache[i].data);
-		free(victimcache);
-		free(victimcache_lru);
+#ifdef VICTIMBUFFER
+	if(target->victimbuffer){
+		for(i = 0;i < number_of_victimbuffer_entry;i++)
+			free(target->victimbuffer[i].data);
+		free(target->victimbuffer);
+		free(target->victimbuffer_lru);
 	}
 #endif
 }
@@ -192,22 +191,23 @@ void do_simulation(const char* input_file){
 }
 
 void cache_access(cache *target, uint64_t addr){
-	uint64_t tag = bitsplit(addr, ADDR_SIZE - tag_length, ADDR_SIZE-1);
-	uint64_t word_index = bitsplit(addr, 0, word_index_length - 1);
+	uint64_t tag = bitsplit(addr, ADDR_SIZE - target->tag_length, ADDR_SIZE-1);
+	uint64_t word_index = bitsplit(addr, 0, target->word_index_length - 1);
 	uint64_t set_index = 0;
-	if(set_index_length)
-		set_index = bitsplit(addr, ADDR_SIZE - tag_length - set_index_length, ADDR_SIZE - tag_length - 1);
+	if(target->set_index_length)
+		set_index = bitsplit(addr, ADDR_SIZE - target->tag_length - target->set_index_length, ADDR_SIZE - target->tag_length - 1);
 
-	cache_access_impl(target, tag, word_index, set_index);
+	cache_access_impl(target, tag, set_index, word_index);
 }
 
-void cache_access_impl(cache *target, uint64_t tag, uint64_t word_index, uint64_t set_index){
+void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
 #ifdef DEBUG
 	printf("tag: %lx\tset index: %lx\tword index: %lx\n", tag, set_index, word_index);
 #endif
 	int i;
 	int found = 0;
 	for(i = 0;i < target->K;i++){
+	//	printf("here\n");
 		cline *cur = &(target->set[set_index].line[i]);
 		if(cur->valid){
 			if(cur->tag == tag){
@@ -222,11 +222,11 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t word_index, uint64_
 	}
 	if(!found){
 #ifdef STREAMBUFFER
-		if(do_streambuffer(tag, set_index, word_index))
+		if(do_streambuffer(target, tag, set_index, word_index))
 			goto finish;
 #endif
-#ifdef VICTIMCACHE
-		if(do_victimcache(tag, set_index, word_index)){
+#ifdef VICTIMBUFFER
+		if(do_victimbuffer(target, tag, set_index, word_index)){
 			goto finish;
 		}
 #endif
@@ -238,30 +238,30 @@ finish:
 }
 #ifdef STREAMBUFFER
 int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
-	if(streambuffer == NULL)
+	if(target->streambuffer == NULL)
 		return 0;
 
-	uint64_t addr = bitmerge(tag, set_index, word_index);
-	uint64_t _tag = bitsplit(addr, ADDR_SIZE-streambuffer_tag_length, ADDR_SIZE-1);
-	if(streambuffer[0].tag == _tag){
+	uint64_t addr = bitmerge(target, tag, set_index, word_index);
+	uint64_t _tag = bitsplit(addr, ADDR_SIZE-target->streambuffer_tag_length, ADDR_SIZE-1);
+	if(target->streambuffer[0].tag == _tag){
 		cline *cur = &target->set[set_index].line[0];
-#ifdef VICTIMCACHE
-		uint64_t cache_addr = bitmerge(cur->tag, set_index, word_index);
-		put_victimcache(addr);
+#ifdef VICTIMBUFFER
+		uint64_t cache_addr = bitmerge(target, cur->tag, set_index, word_index);
+		put_victimbuffer(target, addr);
 #endif
 		cur->tag = tag;
 		cur->valid = 1;
-		fetch_streambuffer(addr, 0);
+		fetch_streambuffer(target, addr, 0);
 		cur->hit_count++;
-		streambuffer_hit++;
+		target->streambuffer_hit++;
 		return 1;
 	}else{
-		streambuffer_miss++;
+		target->streambuffer_miss++;
 		return 0;
 	}
 }
 void fetch_streambuffer(cache *target, uint64_t addr, int refresh_all){
-	if(streambuffer == NULL)
+	if(target->streambuffer == NULL)
 		return;
 
 	if(refresh_all){
@@ -269,35 +269,35 @@ void fetch_streambuffer(cache *target, uint64_t addr, int refresh_all){
 		uint64_t tag;
 		for(i = 0;i < number_of_streambuffer_entry;i++){
 			addr += target->L;
-			tag = bitsplit(addr, ADDR_SIZE - streambuffer_tag_length, ADDR_SIZE-1);
-			streambuffer[i].tag = tag;
+			tag = bitsplit(addr, ADDR_SIZE - target->streambuffer_tag_length, ADDR_SIZE-1);
+			target->streambuffer[i].tag = tag;
 		}
 	}else{
 		addr += target->L * number_of_streambuffer_entry;
 		int i;
 		for(i = 1;i < number_of_streambuffer_entry;i++)
-			swap_cline(&streambuffer[i], &streambuffer[i-1]);
+			swap_cline(&target->streambuffer[i], &target->streambuffer[i-1]);
 
-		uint64_t tag = bitsplit(addr, ADDR_SIZE - streambuffer_tag_length, ADDR_SIZE-1);
-		streambuffer[number_of_streambuffer_entry-1].tag = tag;
+		uint64_t tag = bitsplit(addr, ADDR_SIZE - target->streambuffer_tag_length, ADDR_SIZE-1);
+		target->streambuffer[number_of_streambuffer_entry-1].tag = tag;
 	}
 }
 #endif
-#ifdef VICTIMCACHE
-int do_victimcache(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
-	if(victimcache == NULL)
+#ifdef VICTIMBUFFER
+int do_victimbuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
+	if(target->victimbuffer == NULL)
 		return 0;
 
-	uint64_t addr = bitmerge(tag, set_index, word_index);
-	uint64_t v_tag = bitsplit(addr, ADDR_SIZE-victimcache_tag_length, ADDR_SIZE-1);
+	uint64_t addr = bitmerge(target, tag, set_index, word_index);
+	uint64_t v_tag = bitsplit(addr, ADDR_SIZE-target->victimbuffer_tag_length, ADDR_SIZE-1);
 	int i;
-	for(i = 0;i < number_of_victimcache_entry;i++){
-		if(victimcache[i].tag == v_tag)
+	for(i = 0;i < number_of_victimbuffer_entry;i++){
+		if(target->victimbuffer[i].tag == v_tag)
 			break;
 	}
 
-	if(i == number_of_victimcache_entry){
-		victimcache_miss++;
+	if(i == number_of_victimbuffer_entry){
+		target->victimbuffer_miss++;
 		return 0;
 	}else{
 		cline temp;
@@ -306,38 +306,38 @@ int do_victimcache(cache *target, uint64_t tag, uint64_t set_index, uint64_t wor
 		temp.data = cur->data;
 		cur->tag = tag;
 		cur->valid = 1;
-		cur->data = victimcache[i].data;
+		cur->data = target->victimbuffer[i].data;
 
-		uint64_t tmp_addr = bitmerge(temp.tag, set_index, word_index);
-		victimcache[i].tag = bitsplit(tmp_addr, ADDR_SIZE-victimcache_tag_length, ADDR_SIZE-1);
-		victimcache[i].data = temp.data;		
+		uint64_t tmp_addr = bitmerge(target, temp.tag, set_index, word_index);
+		target->victimbuffer[i].tag = bitsplit(tmp_addr, ADDR_SIZE-target->victimbuffer_tag_length, ADDR_SIZE-1);
+		target->victimbuffer[i].data = temp.data;		
 
 		cur->hit_count++;
-		victimcache_hit++;
+		target->victimbuffer_hit++;
 		return 1;
 	}
 }
-void put_victimcache(uint64_t addr){
-	if(victimcache == NULL)
+void put_victimbuffer(cache *target, uint64_t addr){
+	if(target->victimbuffer == NULL)
 		return;
 
 	int i, idx;
-	for(i = 0;i < number_of_victimcache_entry;i++)
-		if(victimcache[i].valid == 0)
+	for(i = 0;i < number_of_victimbuffer_entry;i++)
+		if(target->victimbuffer[i].valid == 0)
 			break;
-	if(i == number_of_victimcache_entry){
-		idx = victimcache_lru[0];
+	if(i == number_of_victimbuffer_entry){
+		idx = target->victimbuffer_lru[0];
 		if(idx == -1){
-			printf("OPPS, on VICTIMCACHE, lru not full but there is no invalid entry!\n");
+			printf("OPPS, on victimbuffer, lru not full but there is no invalid entry!\n");
 			cleanup();
 			exit(0);
 		}
 	}else
 		idx = i;
-	uint64_t tag = bitsplit(addr, ADDR_SIZE - victimcache_tag_length, ADDR_SIZE-1);
-	victimcache[idx].tag = tag;
-	victimcache[idx].valid = 1;
-	update_lru(victimcache_lru, idx, number_of_victimcache_entry);
+	uint64_t tag = bitsplit(addr, ADDR_SIZE - target->victimbuffer_tag_length, ADDR_SIZE-1);
+	target->victimbuffer[idx].tag = tag;
+	target->victimbuffer[idx].valid = 1;
+	update_lru(target->victimbuffer_lru, idx, number_of_victimbuffer_entry);
 }
 #endif
 void swap_cline(cline *from, cline *to){
@@ -375,7 +375,7 @@ void update_lru(int *lru, int index, unsigned int length){
 }
 void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
 	if(target->lower_cache)
-		cache_access_impl(target->lower_cache, tag, set_index, word_index);
+		cache_access(target->lower_cache, bitmerge(target, tag, set_index, word_index));
 
 	int i;
 	cset *cur = &(target->set[set_index]);
@@ -405,14 +405,14 @@ void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index)
 #endif
 	}
 
-#ifdef VICTIMCACHE
-	uint64_t addr = bitmerge(cur->line[i].tag, set_index, word_index);
-	put_victimcache(addr);
+#ifdef VICTIMBUFFER
+	uint64_t addr = bitmerge(target, cur->line[i].tag, set_index, word_index);
+	put_victimbuffer(target, addr);
 #endif
 	cur->line[i].tag = tag;
 	cur->line[i].valid = 1;
 #ifdef STREAMBUFFER
-	fetch_streambuffer(bitmerge(tag, set_index, word_index), 1);
+	fetch_streambuffer(target, bitmerge(target, tag, set_index, word_index), 1);
 #endif
 }
 
@@ -425,10 +425,10 @@ uint64_t bitsplit(uint64_t value, int from, int to){
 	}
 	return ( value & mask ) >> from;
 }
-uint64_t bitmerge(uint64_t tag, uint64_t set_index, uint64_t word_index){
+uint64_t bitmerge(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
 	uint64_t addr = 0;
-	addr |= tag << (set_index_length + word_index_length);
-	addr |= set_index << (word_index_length);
+	addr |= tag << (target->set_index_length + target->word_index_length);
+	addr |= set_index << (target->word_index_length);
 	addr |= word_index;
 	return addr;
 }
@@ -462,7 +462,6 @@ void print_result(){
 	print_cache(&L1_icache);
 	printf("\n-L2 cache\n");
 	print_cache(&L2_cache);
-	print_extra_component();
 }
 
 void print_cache(cache *target){
@@ -489,15 +488,16 @@ void print_cache(cache *target){
 #endif
 	}
 	printf("Total  miss: %10lu\thit: %10lu\n", total_miss, total_hit);
+	print_extra_component(target);
 }
 
-void print_extra_component(){
+void print_extra_component(cache *target){
 #ifdef STREAMBUFFER
-	if(streambuffer)
-		printf("Stream miss: %10u\thit: %10u\n", streambuffer_miss, streambuffer_hit);
+	if(target->streambuffer)
+		printf("Stream miss: %10u\thit: %10u\n", target->streambuffer_miss, target->streambuffer_hit);
 #endif
-#ifdef VICTIMCACHE
-	if(victimcache)
-		printf("Victim miss: %10u\thit: %10u\n", victimcache_miss, victimcache_hit);
+#ifdef VICTIMBUFFER
+	if(target->victimbuffer)
+		printf("Victim miss: %10u\thit: %10u\n", target->victimbuffer_miss, target->victimbuffer_hit);
 #endif
 }
