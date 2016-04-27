@@ -37,17 +37,22 @@ typedef struct cache_set{
 
 typedef struct cache_impl{
 	cset *set;
+	unsigned int L;
+	unsigned int K;
+	unsigned int N;
+	cache *lower_cache;
 } cache;
 
-cache main_cache;
+cache L1_dcache, L1_icache;
+cache L2_cache;
 
-void initialize_cache(unsigned int _L, unsigned int _K, unsigned int _N);
-void free_cache();
+void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned int _N);
+void free_cache(cache *target);
 
 void do_simulation(const char*);
 void statistics(int types);
-void cache_access(int types, uint64_t addr);
-void fetch(uint64_t, uint64_t, uint64_t);
+void cache_access(cache *target, uint64_t addr);
+void fetch(cache*, uint64_t, uint64_t, uint64_t);
 uint64_t bitsplit(uint64_t value, int from, int to);
 uint64_t bitmerge(uint64_t tag, uint64_t set_index, uint64_t word_index);
 void print_result();
@@ -60,8 +65,8 @@ unsigned int number_of_streambuffer_entry = 0;
 unsigned int streambuffer_tag_length = 0;
 unsigned int streambuffer_hit = 0;
 unsigned int streambuffer_miss = 0;
-int do_streambuffer(uint64_t, uint64_t, uint64_t);
-void fetch_streambuffer(uint64_t, int);
+int do_streambuffer(cache *target, uint64_t, uint64_t, uint64_t);
+void fetch_streambuffer(cache*, uint64_t, int);
 #endif
 
 #ifdef VICTIMCACHE
@@ -71,7 +76,7 @@ unsigned int number_of_victimcache_entry = 0;
 unsigned int victimcache_tag_length = 0;
 unsigned int victimcache_hit = 0;
 unsigned int victimcache_miss = 0;
-int do_victimcache(uint64_t, uint64_t, uint64_t);
+int do_victimcache(cache*, uint64_t, uint64_t, uint64_t);
 void put_victimcache(uint64_t);
 #endif
 
