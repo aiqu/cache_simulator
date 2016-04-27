@@ -57,34 +57,28 @@ input_error:
 
 	do_simulation(argv[1]);
 	print_result();
+
+	cleanup();
+
+	return 0;
+}
+void cleanup(){
 	free_cache(&L1_icache);
 	free_cache(&L1_dcache);
 	free_cache(&L2_cache);
-
-	return 0;
 }
 
 //_L:byte per line
 //_K:line per set
 //_N:number of set
 void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned int _N){
+
+	unsigned int is_dcache = _K == 1 ? 1:0;
 	
 	target->L = _L;
 	target->K = _K;
 	target->N = _N;
 
-#ifdef STREAMBUFFER
-	if(_K != 1){
-		printf("STREAMBUFFER cannot applied to N-way set associative cache\n");
-		exit(0);
-	}
-#endif
-#ifdef VICTIMCACHE
-	if(_K != 1){
-		printf("VICTIMCACHE cannot applied to N-way set associative cache\n");
-		exit(0);
-	}
-#endif
 	int i,j;
 	int word_index_size = _L / WORD_SIZE;
 	int nofset = _N;
@@ -114,18 +108,27 @@ void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned 
 	}
 
 #ifdef STREAMBUFFER
-	streambuffer = calloc(number_of_streambuffer_entry, sizeof(cline));
-	for(i = 0;i < number_of_streambuffer_entry;i++)
-		streambuffer[i].data = malloc(_L);
-	streambuffer_tag_length = ADDR_SIZE - word_index_length;
+	if(is_dcache){
+		streambuffer = calloc(number_of_streambuffer_entry, sizeof(cline));
+		for(i = 0;i < number_of_streambuffer_entry;i++)
+			streambuffer[i].data = malloc(_L);
+		streambuffer_tag_length = ADDR_SIZE - word_index_length;
+	}else{
+		streambuffer = NULL;
+	}
 #endif
 #ifdef VICTIMCACHE
-	victimcache = calloc(number_of_victimcache_entry, sizeof(cline));
-	for(i = 0;i < number_of_victimcache_entry;i++)
-		victimcache[i].data = malloc(_L);
-	victimcache_tag_length = ADDR_SIZE - word_index_length;
-	victimcache_lru = calloc(number_of_victimcache_entry, sizeof(int));
-	memset(victimcache_lru, -1, number_of_victimcache_entry*sizeof(int));
+	if(is_dcache){
+		victimcache = calloc(number_of_victimcache_entry, sizeof(cline));
+		for(i = 0;i < number_of_victimcache_entry;i++)
+			victimcache[i].data = malloc(_L);
+		victimcache_tag_length = ADDR_SIZE - word_index_length;
+		victimcache_lru = calloc(number_of_victimcache_entry, sizeof(int));
+		memset(victimcache_lru, -1, number_of_victimcache_entry*sizeof(int));
+	}else{
+		victimcache = NULL;
+		victimcache_lru = NULL;
+	}
 #endif
 }
 
@@ -144,15 +147,19 @@ void free_cache(cache *target){
 	}
 	free(target->set);
 #ifdef STREAMBUFFER
-	for(i = 0;i < number_of_streambuffer_entry;i++)
-		free(streambuffer[i].data);
-	free(streambuffer);
+	if(streambuffer){
+		for(i = 0;i < number_of_streambuffer_entry;i++)
+			free(streambuffer[i].data);
+		free(streambuffer);
+	}
 #endif
 #ifdef VICTIMCACHE
-	for(i = 0;i < number_of_victimcache_entry;i++)
-		free(victimcache[i].data);
-	free(victimcache);
-	free(victimcache_lru);
+	if(victimcache){
+		for(i = 0;i < number_of_victimcache_entry;i++)
+			free(victimcache[i].data);
+		free(victimcache);
+		free(victimcache_lru);
+	}
 #endif
 }
 
@@ -190,6 +197,11 @@ void cache_access(cache *target, uint64_t addr){
 	uint64_t set_index = 0;
 	if(set_index_length)
 		set_index = bitsplit(addr, ADDR_SIZE - tag_length - set_index_length, ADDR_SIZE - tag_length - 1);
+
+	cache_access_impl(target, tag, word_index, set_index);
+}
+
+void cache_access_impl(cache *target, uint64_t tag, uint64_t word_index, uint64_t set_index){
 #ifdef DEBUG
 	printf("tag: %lx\tset index: %lx\tword index: %lx\n", tag, set_index, word_index);
 #endif
@@ -226,6 +238,9 @@ finish:
 }
 #ifdef STREAMBUFFER
 int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
+	if(streambuffer == NULL)
+		return 0;
+
 	uint64_t addr = bitmerge(tag, set_index, word_index);
 	uint64_t _tag = bitsplit(addr, ADDR_SIZE-streambuffer_tag_length, ADDR_SIZE-1);
 	if(streambuffer[0].tag == _tag){
@@ -246,6 +261,9 @@ int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t wo
 	}
 }
 void fetch_streambuffer(cache *target, uint64_t addr, int refresh_all){
+	if(streambuffer == NULL)
+		return;
+
 	if(refresh_all){
 		int i;
 		uint64_t tag;
@@ -267,6 +285,9 @@ void fetch_streambuffer(cache *target, uint64_t addr, int refresh_all){
 #endif
 #ifdef VICTIMCACHE
 int do_victimcache(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
+	if(victimcache == NULL)
+		return 0;
+
 	uint64_t addr = bitmerge(tag, set_index, word_index);
 	uint64_t v_tag = bitsplit(addr, ADDR_SIZE-victimcache_tag_length, ADDR_SIZE-1);
 	int i;
@@ -297,6 +318,9 @@ int do_victimcache(cache *target, uint64_t tag, uint64_t set_index, uint64_t wor
 	}
 }
 void put_victimcache(uint64_t addr){
+	if(victimcache == NULL)
+		return;
+
 	int i, idx;
 	for(i = 0;i < number_of_victimcache_entry;i++)
 		if(victimcache[i].valid == 0)
@@ -305,6 +329,7 @@ void put_victimcache(uint64_t addr){
 		idx = victimcache_lru[0];
 		if(idx == -1){
 			printf("OPPS, on VICTIMCACHE, lru not full but there is no invalid entry!\n");
+			cleanup();
 			exit(0);
 		}
 	}else
@@ -337,7 +362,7 @@ void update_lru(int *lru, int index, unsigned int length){
 				break;
 		if(i == length){
 			printf("OPPS, index error while updating lru\n");
-			free_cache(&L1_cache);
+			cleanup();
 			exit(0);
 		}
 		lru[i] = index;
@@ -350,7 +375,7 @@ void update_lru(int *lru, int index, unsigned int length){
 }
 void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
 	if(target->lower_cache)
-		cache_access(lower_cache);
+		cache_access_impl(target->lower_cache, tag, set_index, word_index);
 
 	int i;
 	cset *cur = &(target->set[set_index]);
@@ -368,6 +393,7 @@ void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index)
 			i = cur->lru[0];
 			if(i < 0 || i >= target->K){
 				printf("error on i %d\n", i);
+				cleanup();
 				exit(0);
 			}
 #else
@@ -429,33 +455,49 @@ void print_result(){
 	printf("\n----Operation Summary\n");
 	printf("Total Count: %u\n\tInstruction read: %u\tData Read: %u\tData Write: %u\n",
 			ir_count+dr_count+dw_count,ir_count, dr_count, dw_count);
+#endif
+	printf("\n-L1 data cache\n");
+	print_cache(&L1_dcache);
+	printf("\n-L1 instruction cache\n");
+	print_cache(&L1_icache);
+	printf("\n-L2 cache\n");
+	print_cache(&L2_cache);
+	print_extra_component();
+}
 
+void print_cache(cache *target){
+#ifdef DEBUG
 	printf("\n----Cache Summary\n");
 #endif
 	int i,j;
 	uint64_t hit_per_set, total_hit = 0, total_miss = 0;
-	for(i = 0;i < L1_cache.N;i++){
+	for(i = 0;i < target->N;i++){
 		hit_per_set = 0;
 #ifdef DETAIL_STATISTICS
 		printf("\tSet %10u:\n", i);
 #endif
-		for(j = 0;j < L1_cache.K;j++){
-			hit_per_set += L1_cache.set[i].line[j].hit_count;
+		for(j = 0;j < target->K;j++){
+			hit_per_set += target->set[i].line[j].hit_count;
 #ifdef DETAIL_STATISTICS
-			printf("\t\tline %10d: hit %10lu\n", j, L1_cache.set[i].line[j].hit_count);
+			printf("\t\tline %10d: hit %10lu\n", j, target->set[i].line[j].hit_count);
 #endif
 		}
 		total_hit += hit_per_set;
-		total_miss += L1_cache.set[i].miss_count;
+		total_miss += target->set[i].miss_count;
 #if DETAIL_STATISTICS
-		printf("\tmiss: %10lu\thit: %10lu\n", L1_cache.set[i].miss_count, hit_per_set);
+		printf("\tmiss: %10lu\thit: %10lu\n", target->set[i].miss_count, hit_per_set);
 #endif
 	}
 	printf("Total  miss: %10lu\thit: %10lu\n", total_miss, total_hit);
+}
+
+void print_extra_component(){
 #ifdef STREAMBUFFER
-	printf("Stream miss: %10u\thit: %10u\n", streambuffer_miss, streambuffer_hit);
+	if(streambuffer)
+		printf("Stream miss: %10u\thit: %10u\n", streambuffer_miss, streambuffer_hit);
 #endif
 #ifdef VICTIMCACHE
-	printf("Victim miss: %10u\thit: %10u\n", victimcache_miss, victimcache_hit);
+	if(victimcache)
+		printf("Victim miss: %10u\thit: %10u\n", victimcache_miss, victimcache_hit);
 #endif
 }

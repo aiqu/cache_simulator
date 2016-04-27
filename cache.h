@@ -40,7 +40,7 @@ typedef struct cache_impl{
 	unsigned int L;
 	unsigned int K;
 	unsigned int N;
-	cache *lower_cache;
+	void *lower_cache;
 } cache;
 
 cache L1_dcache, L1_icache;
@@ -48,14 +48,18 @@ cache L2_cache;
 
 void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned int _N);
 void free_cache(cache *target);
+void cleanup();
 
 void do_simulation(const char*);
 void statistics(int types);
 void cache_access(cache *target, uint64_t addr);
+void cache_access_impl(cache *target, uint64_t, uint64_t, uint64_t);
 void fetch(cache*, uint64_t, uint64_t, uint64_t);
 uint64_t bitsplit(uint64_t value, int from, int to);
 uint64_t bitmerge(uint64_t tag, uint64_t set_index, uint64_t word_index);
 void print_result();
+void print_cache(cache*);
+void print_extra_component();
 void swap_cline(cline *from, cline *to);
 void update_lru(int *lru, int index, unsigned int length);
 
