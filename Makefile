@@ -3,24 +3,33 @@ EXTRA_CFLAGS =
 #RUN = ./cache astar 64 1 1024 1 4
 #RUN = ./cache astar 64 8 128
 #RUN = ./cache astar 64 2 2048
-#RUN = 
+RUN = 
 
-all:	cache
+SRCS=$(wildcard *.cpp)
+OBJS=$(SRCS:.cpp=.o)
+DEPFILE=.dep
+TARGET=cache
+CC=g++
+
+all:	$(TARGET)
 	@$(RUN)
 
-cache:	cache.o
-	@gcc $(CFLAGS) $(EXTRA_CFLAGS) -o cache cache.c
+$(TARGET): $(OBJS)
+	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $(OBJS)
+
+dep:
+	$(CC) -M $(SRCS) > $(DEPFILE)
 
 clean:
-	rm -rf cache cache.o
+	rm -rf $(TARGET) $(OBJS)
 
 debug:	EXTRA_CFLAGS+=-DDEBUG
 debug: 	cache
 	@$(RUN)
 
-lru:	EXTRA_CFLAGS+=-DLRU
-lru:	cache
-	@$(RUN)
 
+.PHONY: all debug clean
 
-.PHONY: all lru debug clean cache
+ifeq ($(DEPFILE), $(wildcard $(DEPFILE)))
+include $(DEPFILE)
+endif
