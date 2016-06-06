@@ -230,9 +230,11 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 			goto finish;
 		}
 #endif
+
 		target->set[set_index].miss_count++;
 		fetch(target, tag, set_index, word_index);
 	}
+
 finish:
 	return;
 }
