@@ -5,3 +5,4 @@ astar
 bzip2
 cache
 .dep
+*.txt

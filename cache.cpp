@@ -604,7 +604,7 @@ void print_extra_component(cache *target){
 	if(target->writebuffer_size)
 		printf("Writebuffer hit: %10lu\n", target->wbhit);
 	if(flag_printdram && target->stat.size()){
-		FILE* out = fopen("dram.txt", "w");
+		FILE* out = fopen(outfile_name, "w");
 		std::map<int64_t, std::vector<int> >::iterator it;
 		for(it = target->stat.begin();it != target->stat.end();it++){
 			fprintf(out, "%"PRIu64"\t%d\t%d\t%d\t%d\n", it->first, it->second[0], it->second[1]+it->second[3], it->second[2], it->second[0]+it->second[1]+it->second[2]+it->second[3]);
