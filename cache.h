@@ -92,5 +92,5 @@ int do_victimbuffer(cache*, uint64_t, uint64_t, uint64_t, int);
 int put_victimbuffer(cache*, uint64_t, int);
 
 int put_writebuffer(cache*, uint64_t);
-
+int do_writebuffer(cache*, uint64_t);
 #endif

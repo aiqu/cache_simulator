@@ -4,8 +4,8 @@
 #ifndef MAINMEMORY_H
 #define MAINMEMORY_H
 
-const int PAGE_SIZE = 4 * 1024;
-const int DRAM_L = PAGE_SIZE;
+const int DEFAULT_PAGE_SIZE = 4 * 1024;
+extern int DRAM_L;
 const int DRAM_K = 1;
 const int DRAM_NS = 1;
 const int DRAM_NV = 4;

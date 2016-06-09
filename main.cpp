@@ -30,7 +30,7 @@ int main(int argc, char* argv[]){
 	dram_size = DRAM_SIZE;
 	nand_size = NAND_SIZE;
 	writebuffer_size = WRITEBUFFER_SIZE;
-	while( (c=getopt(argc, argv, "f:dFwW")) != -1 ){
+	while( (c=getopt(argc, argv, "f:dFwWD:P:")) != -1 ){
 		switch(c){
 		case 'f':
 			inputfile_name = optarg;
@@ -49,6 +49,12 @@ int main(int argc, char* argv[]){
 			break;
 		case 'W':
 			flag_writedram = 1;
+			break;
+		case 'D':// in mb
+			dram_size = atoi(optarg) * 1024 * 1024;
+			break;
+		case 'P':// in kb
+			PAGE_SIZE = atoi(optarg) * 1024;
 			break;
 		default:
 			printf("Unknown Parameter %c\n", c);

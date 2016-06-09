@@ -25,6 +25,7 @@ extern int flag_fullassociative;
 extern int flag_streambuffer;
 extern int flag_writel2;
 extern int flag_writedram;
+extern int PAGE_SIZE;
 extern int64_t execution_time;
 extern mainmemory mm;
 

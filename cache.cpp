@@ -168,11 +168,6 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 		if(do_victimbuffer(target, tag, set_index, word_index, op)){
 			goto finish;
 		}
-		target->set[set_index].miss_count++;
-		if(op == 0 || op == 2)
-			target->set[set_index].rmiss++;
-		else
-			target->set[set_index].wmiss++;
 		if(target->type == DRAM)
 			fetch_dram(target, tag, set_index, word_index, op);
 		else
@@ -358,11 +353,18 @@ void fetch_dram(cache* target, uint64_t tag, uint64_t set_index, uint64_t word_i
 	switch(op){
 	case 1:
 	case 3:
-		put_writebuffer(target, bitmerge(target, tag, set_index, word_index));
+		if(put_writebuffer(target, bitmerge(target, tag, set_index, word_index))){
+			target->set[set_index].miss_count++;
+			target->set[set_index].wmiss++;
+		}
 		return;
 	case 0:
 	case 2:
-		fetch_nand(&mm, bitmerge(target, tag, set_index, word_index), op);
+		if(do_writebuffer(target, bitmerge(target, tag, set_index, word_index))){
+			target->set[set_index].miss_count++;
+			target->set[set_index].rmiss++;
+			fetch_nand(&mm, bitmerge(target, tag, set_index, word_index), op);
+		}
 		break;
 	}
 	//find block for replacement
@@ -402,6 +404,20 @@ void evict_dram(cache* target, cline* cur, uint64_t addr){
 		put_writebuffer(target, addr);
 	}
 }
+int do_writebuffer(cache* target, uint64_t addr){
+	if(target->writebuffer.size() > 1){
+		uint64_t pgidx = addr / PAGE_SIZE;
+		std::list<std::pair<uint64_t, uint64_t> >::iterator it = target->writebuffer.begin();
+		it++;
+		for(;it != target->writebuffer.end();it++){
+			if(it->first == pgidx){
+				target->wbhit++;
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
 int put_writebuffer(cache* target, uint64_t addr){
 	//if writebuffer exists
 	if(target->writebuffer_size){
@@ -413,12 +429,18 @@ int put_writebuffer(cache* target, uint64_t addr){
 		}
 		uint64_t pgidx = addr/PAGE_SIZE;
 		//second, look up existing writebuffer entries which writting to same pages
-		for(it = target->writebuffer.begin();it != target->writebuffer.end();it++){
-			if( it->first == pgidx ){
-				target->wbhit++;
-				if(flag_debug)
-					printf("Writebuffer hit\n");
-				return 0;
+		if(target->writebuffer.size() > 1){
+			it = target->writebuffer.begin();
+			//start from second one,
+			//because first one already progressing writting
+			it++;
+			for(;it != target->writebuffer.end();it++){
+				if( it->first == pgidx ){
+					target->wbhit++;
+					if(flag_debug)
+						printf("Writebuffer hit\n");
+					return 0;
+				}
 			}
 		}
 		//third, push back to writebuffer
@@ -437,9 +459,14 @@ int put_writebuffer(cache* target, uint64_t addr){
 		//if writebuffer not exists, just wait for write
 		execution_time += mm.nand.write_time;
 	}
-	return 0;
+	return 1;
 }
 void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
+	target->set[set_index].miss_count++;
+	if(op == 0 || op == 2)
+		target->set[set_index].rmiss++;
+	else
+		target->set[set_index].wmiss++;
 	//find block from lower level
 	if(target->lower_cache)
 		cache_access((cache*)target->lower_cache, bitmerge(target, tag, set_index, word_index), op);
@@ -548,6 +575,8 @@ void print_cache(cache *target){
 		printf("\tmiss: %10lu\thit: %10lu\n", target->set[i].miss_count, hit_per_set);
 #endif
 	}
+	if(target->writebuffer_size)
+		total_hit += target->wbhit;
 	printf("Total  miss: %10lu\thit: %10lu\n", total_miss, total_hit);
 	//printf("Read miss: %10lu\thit: %10lu\n", total_rmiss, total_rhit);
 	//printf("Write miss: %10lu\thit: %10lu\n", total_wmiss, total_whit);

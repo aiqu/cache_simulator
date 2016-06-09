@@ -5,8 +5,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int PAGE_SIZE = 0;
+int DRAM_L = DEFAULT_PAGE_SIZE;
+
 //size in byte
 int init_mainmemory(mainmemory* target, int dram_size, int nand_size, int writebuffer_size){
+	if(PAGE_SIZE){
+		DRAM_L = PAGE_SIZE;
+	}else{
+		PAGE_SIZE = DEFAULT_PAGE_SIZE;
+	}
+	if(flag_debug)
+		printf("PAGE SIZE is %d\n", PAGE_SIZE);
 	if(flag_fullassociative){
 		int dram_k = dram_size / DRAM_L;
 		initialize_cache(&target->dram, DRAM, DRAM_L, dram_k, 1);
