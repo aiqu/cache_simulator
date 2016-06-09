@@ -17,6 +17,7 @@ typedef enum cache_type {
 
 typedef struct cache_line{
 	uint64_t valid;
+	uint64_t dirty;
 	uint64_t tag;
 	uint64_t *data;
 	uint64_t hit_count;
@@ -61,9 +62,9 @@ typedef struct cache_impl{
 void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned int _K, unsigned int _N, size_t ns = 0, size_t nv = 0);
 void free_cache(cache *target);
 
-void cache_access(cache *target, uint64_t addr);
-void cache_access_impl(cache *target, uint64_t, uint64_t, uint64_t);
-void fetch(cache*, uint64_t, uint64_t, uint64_t);
+void cache_access(cache *target, uint64_t addr, int);
+void cache_access_impl(cache *target, uint64_t, uint64_t, uint64_t, int);
+void fetch(cache*, uint64_t, uint64_t, uint64_t, int);
 uint64_t bitsplit(uint64_t value, int from, int to);
 uint64_t bitmerge(cache*, uint64_t tag, uint64_t set_index, uint64_t word_index);
 void print_cache(cache*);
@@ -71,10 +72,10 @@ void print_extra_component(cache*);
 void swap_cline(cline *from, cline *to);
 void update_lru(int *lru, int index, unsigned int length);
 
-int do_streambuffer(cache *target, uint64_t, uint64_t, uint64_t);
+int do_streambuffer(cache *target, uint64_t, uint64_t, uint64_t, int);
 void fetch_streambuffer(cache*, uint64_t, int);
 
-int do_victimbuffer(cache*, uint64_t, uint64_t, uint64_t);
-void put_victimbuffer(cache*, uint64_t);
+int do_victimbuffer(cache*, uint64_t, uint64_t, uint64_t, int);
+void put_victimbuffer(cache*, uint64_t, int);
 
 #endif

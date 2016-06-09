@@ -24,7 +24,7 @@ int init_mainmemory(mainmemory*, int, int);
 void free_mainmemory(mainmemory*);
 void print_mainmemory(mainmemory*);
 
-int mainmemory_access(mainmemory*, int64_t);
+int mainmemory_access(mainmemory*, int64_t, int);
 
 
 #endif

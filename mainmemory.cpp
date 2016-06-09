@@ -36,8 +36,8 @@ void print_mainmemory(mainmemory* target){
 	print_cache(&target->dram);
 }
 
-int mainmemory_access(mainmemory* target, int64_t addr){
+int mainmemory_access(mainmemory* target, int64_t addr, int op){
 	cache* c = &target->dram;
-	cache_access(c, addr);
+	cache_access(c, addr, op);
 	return 0;	
 }

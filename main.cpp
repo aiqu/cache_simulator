@@ -90,9 +90,9 @@ void do_simulation(const char* input_file){
 			printf("type: %d, addr: %lx\n", type, addr);
 		statistics(type);
 		if(type == 2)
-			cache_access(&L1_icache, addr);
+			cache_access(&L1_icache, addr, type);
 		else
-			cache_access(&L1_dcache, addr);
+			cache_access(&L1_dcache, addr, type);
 	}while(!flag_debug && !feof(input));
 
 	fclose(input);

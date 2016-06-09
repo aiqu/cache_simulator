@@ -15,8 +15,8 @@
 void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned int _K, unsigned int _N, size_t number_of_streambuffer_entry, size_t number_of_victimbuffer_entry){
 	if(flag_debug){
 		printf("Initiating L(%u)K(%u)N(%u):%uKB cache..\n", _L, _K, _N, _L*_K*_N / 1024);
-		if(number_of_streambuffer_entry)
-			printf("Streambuffer size: %zu\n", number_of_streambuffer_entry);
+		//if(number_of_streambuffer_entry)
+			//printf("Streambuffer size: %zu\n", number_of_streambuffer_entry);
 		if(number_of_victimbuffer_entry)
 			printf("Victim cache size; %zu\n", number_of_victimbuffer_entry);
 	}
@@ -53,15 +53,15 @@ void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned
 		}
 	}
 
-	if(is_dcache){
-		target->streambuffer = (cline*)calloc(number_of_streambuffer_entry, sizeof(cline));
-		target->streambuffer_size = number_of_streambuffer_entry;
-		for(i = 0;i < number_of_streambuffer_entry;i++)
-			target->streambuffer[i].data = (uint64_t*)malloc(_L);
-		target->streambuffer_tag_length = ADDR_SIZE - target->word_index_length;
-	}else{
+	//if(is_dcache){
+		//target->streambuffer = (cline*)calloc(number_of_streambuffer_entry, sizeof(cline));
+		//target->streambuffer_size = number_of_streambuffer_entry;
+		//for(i = 0;i < number_of_streambuffer_entry;i++)
+			//target->streambuffer[i].data = (uint64_t*)malloc(_L);
+		//target->streambuffer_tag_length = ADDR_SIZE - target->word_index_length;
+	//}else{
 		target->streambuffer = NULL;
-	}
+	//}
 	if(is_dcache){
 		target->victimbuffer = (cline*)calloc(number_of_victimbuffer_entry, sizeof(cline));
 		target->victimbuffer_size = number_of_victimbuffer_entry;
@@ -122,7 +122,7 @@ void free_cache(cache *target){
 	}
 }
 
-void cache_access(cache *target, uint64_t addr){
+void cache_access(cache *target, uint64_t addr, int op){
 	uint64_t tag = bitsplit(addr, ADDR_SIZE - target->tag_length, ADDR_SIZE-1);
 	uint64_t word_index = bitsplit(addr, 0, target->word_index_length - 1);
 	uint64_t set_index = 0;
@@ -132,10 +132,10 @@ void cache_access(cache *target, uint64_t addr){
 	if(flag_debug)
 		printf("accessing %s..\n", target->name);
 
-	cache_access_impl(target, tag, set_index, word_index);
+	cache_access_impl(target, tag, set_index, word_index, op);
 }
 
-void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
+void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
 #ifdef DEBUG
 	printf("tag: %lx\tset index: %lx\tword index: %lx\n", tag, set_index, word_index);
 #endif
@@ -148,24 +148,31 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 			if(cur->tag == tag){
 				cur->hit_count++;
 				found = 1;
+				if(op == 1 || op == 3){
+					cur->dirty = 1;
+					execution_time += target->write_time;
+				}else{
+					execution_time += target->read_time;
+				}
 				break;
 			}
 		}
 	}
 	if(!found){
-		if(do_streambuffer(target, tag, set_index, word_index))
+		if(do_streambuffer(target, tag, set_index, word_index, op)){
 			goto finish;
-		if(do_victimbuffer(target, tag, set_index, word_index)){
+		}
+		if(do_victimbuffer(target, tag, set_index, word_index, op)){
 			goto finish;
 		}
 		target->set[set_index].miss_count++;
-		fetch(target, tag, set_index, word_index);
+		fetch(target, tag, set_index, word_index, op);
 	}
 finish:
-	execution_time += target->read_time;
 	return;
 }
-int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
+
+int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
 	if(target->streambuffer == NULL)
 		return 0;
 
@@ -174,7 +181,14 @@ int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t wo
 	if(target->streambuffer[0].tag == _tag){
 		cline *cur = &target->set[set_index].line[0];
 		uint64_t cache_addr = bitmerge(target, cur->tag, set_index, word_index);
-		put_victimbuffer(target, addr);
+		put_victimbuffer(target, addr, cur->dirty);
+		if(op == 1 || op == 3){
+			cur->dirty = 1;
+			execution_time += target->write_time;
+		}else{
+			cur->dirty = 0;
+			execution_time += target->read_time;
+		}
 		cur->tag = tag;
 		cur->valid = 1;
 		fetch_streambuffer(target, addr, 0);
@@ -182,6 +196,7 @@ int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t wo
 		target->streambuffer_hit++;
 		return 1;
 	}else{
+		fetch_streambuffer(target, bitmerge(target, tag, set_index, word_index), 1);
 		target->streambuffer_miss++;
 		return 0;
 	}
@@ -208,7 +223,7 @@ void fetch_streambuffer(cache *target, uint64_t addr, int refresh_all){
 		target->streambuffer[target->streambuffer_size-1].tag = tag;
 	}
 }
-int do_victimbuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
+int do_victimbuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
 	if(target->victimbuffer == NULL)
 		return 0;
 
@@ -241,7 +256,7 @@ int do_victimbuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t wo
 		return 1;
 	}
 }
-void put_victimbuffer(cache *target, uint64_t addr){
+void put_victimbuffer(cache *target, uint64_t addr, int op){
 	if(target->victimbuffer == NULL)
 		return;
 
@@ -292,12 +307,12 @@ void update_lru(int *lru, int index, unsigned int length){
 		lru[i] = lru[i+1];
 	lru[length-1] = temp;
 }
-void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
+void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
 	if(target->lower_cache)
-		cache_access((cache*)target->lower_cache, bitmerge(target, tag, set_index, word_index));
+		cache_access((cache*)target->lower_cache, bitmerge(target, tag, set_index, word_index), op);
 	else{
 		if(target->type != DRAM)
-			mainmemory_access(&mm, bitmerge(target, tag, set_index, word_index));
+			mainmemory_access(&mm, bitmerge(target, tag, set_index, word_index), op);
 	}
 
 	int i;
@@ -318,10 +333,9 @@ void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index)
 	execution_time += target->write_time;
 
 	uint64_t addr = bitmerge(target, cur->line[i].tag, set_index, word_index);
-	put_victimbuffer(target, addr);
+	put_victimbuffer(target, addr, op);
 	cur->line[i].tag = tag;
 	cur->line[i].valid = 1;
-	fetch_streambuffer(target, bitmerge(target, tag, set_index, word_index), 1);
 }
 
 uint64_t bitsplit(uint64_t value, int from, int to){
