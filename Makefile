@@ -12,7 +12,6 @@ TARGET=cache
 CC=g++
 
 all:	$(TARGET)
-	@$(RUN)
 
 $(TARGET): $(OBJS)
 	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $(OBJS)
@@ -23,9 +22,10 @@ dep:
 clean:
 	rm -rf $(TARGET) $(OBJS)
 
-debug:	EXTRA_CFLAGS+=-DDEBUG
-debug: 	cache
-	@$(RUN)
+debug:	EXTRA_CFLAGS+=-g
+debug:	CXXFLAGS+=-g
+debug: 	$(TARGET)
+	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $(TARGET) $(OBJS)
 
 
 .PHONY: all debug clean

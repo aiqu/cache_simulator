@@ -22,6 +22,7 @@ void cleanup();
 
 extern int flag_debug;
 extern int flag_fullassociative;
+extern int flag_streambuffer;
 extern int64_t execution_time;
 extern mainmemory mm;
 

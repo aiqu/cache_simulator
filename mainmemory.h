@@ -24,7 +24,8 @@ int init_mainmemory(mainmemory*, int, int);
 void free_mainmemory(mainmemory*);
 void print_mainmemory(mainmemory*);
 
-int mainmemory_access(mainmemory*, int64_t, int);
+int mainmemory_access(mainmemory*, uint64_t, int);
 
+void nand_fetch(mainmemory*, uint64_t, int);
 
 #endif

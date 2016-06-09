@@ -65,6 +65,7 @@ void free_cache(cache *target);
 void cache_access(cache *target, uint64_t addr, int);
 void cache_access_impl(cache *target, uint64_t, uint64_t, uint64_t, int);
 void fetch(cache*, uint64_t, uint64_t, uint64_t, int);
+void evict(cache*, cline*, uint64_t);
 uint64_t bitsplit(uint64_t value, int from, int to);
 uint64_t bitmerge(cache*, uint64_t tag, uint64_t set_index, uint64_t word_index);
 void print_cache(cache*);

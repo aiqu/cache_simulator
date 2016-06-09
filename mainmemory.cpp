@@ -36,8 +36,11 @@ void print_mainmemory(mainmemory* target){
 	print_cache(&target->dram);
 }
 
-int mainmemory_access(mainmemory* target, int64_t addr, int op){
+int mainmemory_access(mainmemory* target, uint64_t addr, int op){
 	cache* c = &target->dram;
 	cache_access(c, addr, op);
 	return 0;	
+}
+
+void nand_fetch(mainmemory *target, uint64_t addr, int op){
 }

@@ -10,6 +10,7 @@ using namespace std;
 
 int flag_debug = 0;
 int flag_fullassociative = 0;
+int flag_streambuffer = 0;
 int64_t execution_time = 0;
 unsigned int ir_count = 0;
 unsigned int dr_count = 0;
@@ -21,7 +22,6 @@ cache L2_cache;
 mainmemory mm;
 
 int main(int argc, char* argv[]){
-
 	char* inputfile_name = NULL;
 	int c;
 	int dram_size, nand_size;
@@ -37,6 +37,9 @@ int main(int argc, char* argv[]){
 			break;
 		case 'F':
 			flag_fullassociative = 1;
+			break;
+		case 'S':
+			flag_streambuffer = 1;
 			break;
 		default:
 			printf("Unknown Parameter %c\n", c);
