@@ -21,6 +21,7 @@ void print_result();
 void cleanup();
 
 extern int flag_debug;
+extern int flag_fullassociative;
 extern int64_t execution_time;
 extern mainmemory mm;
 

@@ -9,6 +9,7 @@
 using namespace std;
 
 int flag_debug = 0;
+int flag_fullassociative = 0;
 int64_t execution_time = 0;
 unsigned int ir_count = 0;
 unsigned int dr_count = 0;
@@ -26,13 +27,16 @@ int main(int argc, char* argv[]){
 	int dram_size, nand_size;
 	dram_size = DRAM_SIZE;
 	nand_size = NAND_SIZE;
-	while( (c=getopt(argc, argv, "f:d")) != -1 ){
+	while( (c=getopt(argc, argv, "f:dF")) != -1 ){
 		switch(c){
 		case 'f':
 			inputfile_name = optarg;
 			break;
 		case 'd':
 			flag_debug = 1;
+			break;
+		case 'F':
+			flag_fullassociative = 1;
 			break;
 		default:
 			printf("Unknown Parameter %c\n", c);
