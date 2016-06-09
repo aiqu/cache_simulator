@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include <iostream>
-#include <vector>
 
 #include "cache.h"
 #include "main.h"
@@ -129,8 +128,8 @@ void cache_access(cache *target, uint64_t addr, int op){
 	if(target->set_index_length)
 		set_index = bitsplit(addr, ADDR_SIZE - target->tag_length - target->set_index_length, ADDR_SIZE - target->tag_length - 1);
 
-	if(flag_debug)
-		printf("accessing %s..\n", target->name);
+	//if(flag_debug)
+		//printf("accessing %s..\n", target->name);
 
 	cache_access_impl(target, tag, set_index, word_index, op);
 }
@@ -151,8 +150,10 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 				if(op == 1 || op == 3){
 					cur->dirty = 1;
 					execution_time += target->write_time;
+					cur->whit++;
 				}else{
 					execution_time += target->read_time;
+					cur->rhit++;
 				}
 				break;
 			}
@@ -166,12 +167,14 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 			goto finish;
 		}
 		target->set[set_index].miss_count++;
-		if(target->type == DRAM){
-			uint64_t addr = bitmerge(target, tag, set_index, word_index);
-			nand_fetch(&mm, addr, op);
-		}else{
+		if(op == 0 || op == 2)
+			target->set[set_index].rmiss++;
+		else
+			target->set[set_index].wmiss++;
+		if(target->type == DRAM)
+			fetch_dram(target, tag, set_index, word_index, op);
+		else
 			fetch(target, tag, set_index, word_index, op);
-		}
 	}
 finish:
 	return;
@@ -190,9 +193,11 @@ int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t wo
 		if(op == 1 || op == 3){
 			cur->dirty = 1;
 			execution_time += target->write_time;
+			cur->whit++;
 		}else{
 			cur->dirty = 0;
 			execution_time += target->read_time;
+			cur->rhit++;
 		}
 		cur->tag = tag;
 		cur->valid = 1;
@@ -262,8 +267,10 @@ int do_victimbuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t wo
 		if(op == 1 || op == 3){
 			cur->dirty = 1;
 			execution_time += target->write_time;
+			cur->whit++;
 		}else{
 			execution_time += target->read_time;
+			cur->rhit++;
 		}
 
 		cur->hit_count++;
@@ -274,9 +281,9 @@ int do_victimbuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t wo
 		return 1;
 	}
 }
-void put_victimbuffer(cache *target, uint64_t addr, int dirty){
+int put_victimbuffer(cache *target, uint64_t addr, int dirty){
 	if(target->victimbuffer == NULL)
-		return;
+		return 1;
 
 	int i, idx;
 	for(i = 0;i < target->victimbuffer_size;i++)
@@ -287,13 +294,23 @@ void put_victimbuffer(cache *target, uint64_t addr, int dirty){
 		if(idx == -1){
 			printf("OPPS, on victimbuffer, lru not full but there is no invalid entry!\n");
 		}
+		//victim is full, evict target block
+		if(target->type == DRAM)
+			evict_dram(target, &target->victimbuffer[idx], target->victimbuffer[idx].addr);
+		else
+			evict(target, &target->victimbuffer[idx], target->victimbuffer[idx].addr);
 	}else
 		idx = i;
+
+	//write requested block
 	uint64_t tag = bitsplit(addr, ADDR_SIZE - target->victimbuffer_tag_length, ADDR_SIZE-1);
 	target->victimbuffer[idx].tag = tag;
 	target->victimbuffer[idx].valid = 1;
 	target->victimbuffer[idx].dirty = dirty;
+	target->victimbuffer[idx].addr = addr;
+	//update lru
 	update_lru(target->victimbuffer_lru, idx, target->victimbuffer_size);
+	return 0;
 }
 void swap_cline(cline *from, cline *to){
 	cline temp;
@@ -332,19 +349,21 @@ void update_lru(int *lru, int index, unsigned int length){
 		lru[i] = lru[i+1];
 	lru[length-1] = temp;
 }
-void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
-	if(target->lower_cache)
-		cache_access((cache*)target->lower_cache, bitmerge(target, tag, set_index, word_index), op);
-	else{
-		if(target->type != DRAM)
-			mainmemory_access(&mm, bitmerge(target, tag, set_index, word_index), op);
-	}
 
-	//no need for update current cache if operation type is write
-	//updating lower level cache is enough
-	if(op == 1 || op == 3)
+//read: read from nand -> write to dram -> send to upper
+//write: write to writebuffer
+void fetch_dram(cache* target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
+	switch(op){
+	case 1:
+	case 3:
+		put_writebuffer(target, bitmerge(target, tag, set_index, word_index));
 		return;
-
+	case 0:
+	case 2:
+		fetch_nand(&mm, bitmerge(target, tag, set_index, word_index), op);
+		break;
+	}
+	//find block for replacement
 	int i;
 	cset *cur = &(target->set[set_index]);
 	if(target->K == 1){
@@ -361,19 +380,121 @@ void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index,
 	}
 
 	uint64_t addr = bitmerge(target, cur->line[i].tag, set_index, word_index);
-	evict(target, &cur->line[i], addr);
-	execution_time += target->write_time;
+	//evict chosen block to victim buffer,
+	//if no victim buffer, just evict.
+	//time controled inside
+	if(put_victimbuffer(target, addr, cur->line[i].dirty))
+		evict_dram(target, &cur->line[i], addr);
 
-	put_victimbuffer(target, addr, cur->line[i].dirty);
+	//write block found from lower level
+	execution_time += target->write_time;
 	cur->line[i].tag = tag;
 	cur->line[i].valid = 1;
 	cur->line[i].dirty = 0;
 
+	//finally, add read time for returning requested value
+	execution_time += target->read_time;
+}
+void evict_dram(cache* target, cline* cur, uint64_t addr){
+	if(cur->valid && cur->dirty){
+		put_writebuffer(target, addr);
+	}
+}
+int put_writebuffer(cache* target, uint64_t addr){
+	//if writebuffer exists
+	if(target->writebuffer_size){
+		std::list<std::pair<uint64_t, uint64_t> >::iterator it = target->writebuffer.begin();
+		//first, preprocess expired writebuffer elements
+		for(;it != target->writebuffer.end();it++){
+			if(it->second <= execution_time)
+				it = target->writebuffer.erase(it);
+		}
+		uint64_t pgidx = addr/PAGE_SIZE;
+		//second, look up existing writebuffer entries which writting to same pages
+		for(it = target->writebuffer.begin();it != target->writebuffer.end();it++){
+			if( it->first == pgidx ){
+				if(flag_debug)
+					printf("Writebuffer hit\n");
+				return 0;
+			}
+		}
+		//third, push back to writebuffer
+		put_nand(&mm, pgidx);
+		if(target->writebuffer.size() < target->writebuffer_size){
+			target->writebuffer.push_back(std::pair<uint64_t, uint64_t>(pgidx, execution_time+mm.nand.write_time));
+		}else{
+			//if writebuffer full, wait for first write finishes
+			if(flag_debug)
+				printf("Writebuffer full!\n");
+			execution_time = target->writebuffer.front().second;
+			target->writebuffer.pop_front();
+			target->writebuffer.push_back(std::pair<uint64_t, uint64_t>(pgidx, execution_time+mm.nand.write_time));
+		}
+	}else{
+		//if writebuffer not exists, just wait for write
+		execution_time += mm.nand.write_time;
+	}
+	return 0;
+}
+void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index, int op){
+	//find block from lower level
+	if(target->lower_cache)
+		cache_access((cache*)target->lower_cache, bitmerge(target, tag, set_index, word_index), op);
+	else{
+		if(target->type != DRAM)
+			mainmemory_access(&mm, bitmerge(target, tag, set_index, word_index), op);
+	}
+
+	//no need for add new block for write to current cache if operation type is write
+	//updating lower level cache is enough
+	//because, later read call will fetch block
+	//we do not have to do it right now
+	//-----------------------------------------------
+	//but, if write address never read, cache miss will increse so large
+
+	if(flag_writel2){
+		if(target->lower_cache && (op == 1 || op == 3))
+			return;
+	}else if(flag_writedram){
+		if(!mm.init && (op == 1 || op == 3))
+			return;
+	}
+
+	//choose block for replacement
+	int i;
+	cset *cur = &(target->set[set_index]);
+	if(target->K == 1){
+		i = 0;
+	}else{
+		//default replacement is random
+		for(i = 0;i < target->K;i++){
+			if(!cur->line[i].valid)
+				break;
+		}
+		if(i == target->K){
+			i = rand()%target->K;
+		}
+	}
+
+	uint64_t addr = bitmerge(target, cur->line[i].tag, set_index, word_index);
+	//evict chosen block to victim buffer,
+	//if no victim buffer, just evict.
+	//time controled inside
+	if(put_victimbuffer(target, addr, cur->line[i].dirty))
+		evict(target, &cur->line[i], addr);
+
+	//write block found from lower level
+	execution_time += target->write_time;
+	cur->line[i].tag = tag;
+	cur->line[i].valid = 1;
+	cur->line[i].dirty = 0;
+
+	//finally, add read time for returning requested value
 	execution_time += target->read_time;
 }
 
 void evict(cache *target, cline *cur, uint64_t addr){
-	if(cur->dirty){
+	if(cur->valid && cur->dirty){
 		if(target->lower_cache)
 			cache_access((cache*)target->lower_cache, addr, 1);
 		else
@@ -401,6 +522,8 @@ void print_cache(cache *target){
 	printf("\n----%s Summary\n", target->name);
 	int i,j;
 	uint64_t hit_per_set, total_hit = 0, total_miss = 0;
+	uint64_t total_rhit = 0, total_whit = 0;
+	uint64_t total_rmiss = 0, total_wmiss = 0;
 	for(i = 0;i < target->N;i++){
 		hit_per_set = 0;
 #ifdef DETAIL_STATISTICS
@@ -408,17 +531,23 @@ void print_cache(cache *target){
 #endif
 		for(j = 0;j < target->K;j++){
 			hit_per_set += target->set[i].line[j].hit_count;
+			total_rhit += target->set[i].line[j].rhit;
+			total_whit += target->set[i].line[j].whit;
 #ifdef DETAIL_STATISTICS
 			printf("\t\tline %10d: hit %10lu\n", j, target->set[i].line[j].hit_count);
 #endif
 		}
 		total_hit += hit_per_set;
 		total_miss += target->set[i].miss_count;
+		total_rmiss += target->set[i].rmiss;
+		total_wmiss += target->set[i].wmiss;
 #if DETAIL_STATISTICS
 		printf("\tmiss: %10lu\thit: %10lu\n", target->set[i].miss_count, hit_per_set);
 #endif
 	}
 	printf("Total  miss: %10lu\thit: %10lu\n", total_miss, total_hit);
+	//printf("Read miss: %10lu\thit: %10lu\n", total_rmiss, total_rhit);
+	//printf("Write miss: %10lu\thit: %10lu\n", total_wmiss, total_whit);
 	print_extra_component(target);
 }
 

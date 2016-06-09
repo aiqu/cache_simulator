@@ -11,6 +11,8 @@ using namespace std;
 int flag_debug = 0;
 int flag_fullassociative = 0;
 int flag_streambuffer = 0;
+int flag_writel2 = 0;
+int flag_writedram = 0;
 int64_t execution_time = 0;
 unsigned int ir_count = 0;
 unsigned int dr_count = 0;
@@ -24,10 +26,11 @@ mainmemory mm;
 int main(int argc, char* argv[]){
 	char* inputfile_name = NULL;
 	int c;
-	int dram_size, nand_size;
+	int dram_size, nand_size, writebuffer_size;
 	dram_size = DRAM_SIZE;
 	nand_size = NAND_SIZE;
-	while( (c=getopt(argc, argv, "f:dF")) != -1 ){
+	writebuffer_size = WRITEBUFFER_SIZE;
+	while( (c=getopt(argc, argv, "f:dFwW")) != -1 ){
 		switch(c){
 		case 'f':
 			inputfile_name = optarg;
@@ -40,6 +43,12 @@ int main(int argc, char* argv[]){
 			break;
 		case 'S':
 			flag_streambuffer = 1;
+			break;
+		case 'w':
+			flag_writel2 = 1;
+			break;
+		case 'W':
+			flag_writedram = 1;
 			break;
 		default:
 			printf("Unknown Parameter %c\n", c);
@@ -60,7 +69,8 @@ int main(int argc, char* argv[]){
 	L1_dcache.name = "L1_dcache";
 	L2_cache.name = "L2_cache";
 
-	if(init_mainmemory(&mm, dram_size, nand_size)){
+	mm.init = 1;
+	if(init_mainmemory(&mm, dram_size, nand_size, writebuffer_size)){
 		return 0;
 	}
 
@@ -89,14 +99,14 @@ void do_simulation(const char* input_file){
 
 	do{
 		fscanf(input, "%d %lx\n", &type, &addr);
-		if(flag_debug)
-			printf("type: %d, addr: %lx\n", type, addr);
+		//if(flag_debug)
+			//printf("type: %d, addr: %lx\n", type, addr);
 		statistics(type);
 		if(type == 2)
 			cache_access(&L1_icache, addr, type);
 		else
 			cache_access(&L1_dcache, addr, type);
-	}while(!flag_debug && !feof(input));
+	}while(!feof(input));
 
 	fclose(input);
 }
@@ -112,6 +122,9 @@ void statistics(int type){
 	case 2:
 		ir_count++;
 		break;
+	case 3:
+		dw_count++;
+		break;
 	default:
 		unknown_count++;
 		break;
@@ -119,19 +132,17 @@ void statistics(int type){
 }
 
 void print_result(){
-#ifdef DEBUG
-	printf("\n----Operation Summary\n");
-	printf("Total Count: %u\n\tInstruction read: %u\tData Read: %u\tData Write: %u\n",
-			ir_count+dr_count+dw_count,ir_count, dr_count, dw_count);
-#endif
+	//printf("\n----Operation Summary\n");
+	//printf("Total Count: %u\n\tInstruction read: %u\tData Read: %u\tData Write: %u\n",
+			//ir_count+dr_count+dw_count,ir_count, dr_count, dw_count);
 	printf("\n Total Execution Time:\t%"PRId64"\n", execution_time);
-	printf("\n-L1 data cache\n");
+	//printf("\n-L1 data cache\n");
 	print_cache(&L1_dcache);
-	printf("\n-L1 instruction cache\n");
+	//printf("\n-L1 instruction cache\n");
 	print_cache(&L1_icache);
-	printf("\n-L2 cache\n");
+	//printf("\n-L2 cache\n");
 	print_cache(&L2_cache);
 
-	printf("\n-MainMemory\n");
+	//printf("\n-MainMemory\n");
 	print_mainmemory(&mm);
 }
