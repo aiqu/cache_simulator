@@ -74,6 +74,8 @@ void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned
 		target->victimbuffer_lru = NULL;
 	}
 
+	target->wbhit = 0;
+
 	switch((int)ctype){
 	case L1:
 		target->access_latency = 1;
@@ -413,6 +415,7 @@ int put_writebuffer(cache* target, uint64_t addr){
 		//second, look up existing writebuffer entries which writting to same pages
 		for(it = target->writebuffer.begin();it != target->writebuffer.end();it++){
 			if( it->first == pgidx ){
+				target->wbhit++;
 				if(flag_debug)
 					printf("Writebuffer hit\n");
 				return 0;
@@ -556,4 +559,6 @@ void print_extra_component(cache *target){
 		printf("Stream miss: %10u\thit: %10u\n", target->streambuffer_miss, target->streambuffer_hit);
 	if(target->victimbuffer)
 		printf("Victim miss: %10u\thit: %10u\n", target->victimbuffer_miss, target->victimbuffer_hit);
+	if(target->writebuffer_size)
+		printf("Writebuffer hit: %10lu\n", target->wbhit);
 }
