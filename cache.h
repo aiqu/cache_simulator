@@ -8,6 +8,13 @@
 #define WORD_SIZE	1	//byte, basic block size
 #define INPUT_FILE	"astar"
 
+typedef enum cache_type {
+	L1 = 0,
+	L2,
+	DRAM,
+	CTYPE_MAX,
+} cachy_type;
+
 typedef struct cache_line{
 	uint64_t valid;
 	uint64_t tag;
@@ -44,11 +51,14 @@ typedef struct cache_impl{
 	size_t victimbuffer_size;
 
 	const char* name;
+	cache_type type;
+
+	int access_latency;
+	int write_time;
+	int read_time;
 } cache;
 
-extern int flag_debug;
-
-void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned int _N, size_t ns = 0, size_t nv = 0);
+void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned int _K, unsigned int _N, size_t ns = 0, size_t nv = 0);
 void free_cache(cache *target);
 
 void cache_access(cache *target, uint64_t addr);

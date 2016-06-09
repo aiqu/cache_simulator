@@ -7,11 +7,12 @@
 #include <vector>
 
 #include "cache.h"
+#include "main.h"
 
 //_L:byte per line
 //_K:line per set
 //_N:number of set
-void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned int _N, size_t number_of_streambuffer_entry, size_t number_of_victimbuffer_entry){
+void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned int _K, unsigned int _N, size_t number_of_streambuffer_entry, size_t number_of_victimbuffer_entry){
 	if(flag_debug){
 		printf("Initiating L(%u)K(%u)N(%u):%uKB cache..\n", _L, _K, _N, _L*_K*_N / 1024);
 		if(number_of_streambuffer_entry)
@@ -73,6 +74,28 @@ void initialize_cache(cache *target, unsigned int _L, unsigned int _K, unsigned 
 		target->victimbuffer = NULL;
 		target->victimbuffer_lru = NULL;
 	}
+
+	switch((int)ctype){
+	case L1:
+		target->access_latency = 1;
+		target->read_time = 1;
+		target->write_time = 1;
+		break;
+	case L2:
+		target->access_latency = 20;
+		target->read_time = 1;
+		target->write_time = 1;
+		break;
+	case DRAM:
+		target->access_latency = 200000;
+		target->read_time = 10;
+		target->write_time = 10;
+		break;
+	default:
+		printf("Unkwon cache type %d", (int)ctype);
+	}
+
+	target->type = ctype;
 }
 
 void free_cache(cache *target){
@@ -106,6 +129,9 @@ void cache_access(cache *target, uint64_t addr){
 	if(target->set_index_length)
 		set_index = bitsplit(addr, ADDR_SIZE - target->tag_length - target->set_index_length, ADDR_SIZE - target->tag_length - 1);
 
+	if(flag_debug)
+		printf("accessing %s..\n", target->name);
+
 	cache_access_impl(target, tag, set_index, word_index);
 }
 
@@ -113,6 +139,7 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 #ifdef DEBUG
 	printf("tag: %lx\tset index: %lx\tword index: %lx\n", tag, set_index, word_index);
 #endif
+	execution_time += target->access_latency;
 	int i;
 	int found = 0;
 	for(i = 0;i < target->K;i++){
@@ -135,6 +162,7 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 		fetch(target, tag, set_index, word_index);
 	}
 finish:
+	execution_time += target->read_time;
 	return;
 }
 int do_streambuffer(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
@@ -267,6 +295,10 @@ void update_lru(int *lru, int index, unsigned int length){
 void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index){
 	if(target->lower_cache)
 		cache_access((cache*)target->lower_cache, bitmerge(target, tag, set_index, word_index));
+	else{
+		if(target->type != DRAM)
+			mainmemory_access(&mm, bitmerge(target, tag, set_index, word_index));
+	}
 
 	int i;
 	cset *cur = &(target->set[set_index]);
@@ -282,6 +314,8 @@ void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index)
 			i = rand()%target->K;
 		}
 	}
+
+	execution_time += target->write_time;
 
 	uint64_t addr = bitmerge(target, cur->line[i].tag, set_index, word_index);
 	put_victimbuffer(target, addr);

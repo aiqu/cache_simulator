@@ -1,3 +1,6 @@
+#include <inttypes.h>
+#include "mainmemory.h"
+
 #ifndef MAIN_H
 #define MAIN_H
 
@@ -12,13 +15,13 @@ const unsigned int L2_K = 2;
 const unsigned int L2_N = 1024;
 
 //statistics
-unsigned int ir_count = 0;
-unsigned int dr_count = 0;
-unsigned int dw_count = 0;
-unsigned int unknown_count = 0;
 void do_simulation(const char*);
 void statistics(int types);
 void print_result();
 void cleanup();
+
+extern int flag_debug;
+extern int64_t execution_time;
+extern mainmemory mm;
 
 #endif
