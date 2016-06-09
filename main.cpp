@@ -13,6 +13,7 @@ int flag_fullassociative = 0;
 int flag_streambuffer = 0;
 int flag_writel2 = 0;
 int flag_writedram = 0;
+int flag_printdram = 0;
 int64_t execution_time = 0;
 unsigned int ir_count = 0;
 unsigned int dr_count = 0;
@@ -30,7 +31,7 @@ int main(int argc, char* argv[]){
 	dram_size = DRAM_SIZE;
 	nand_size = NAND_SIZE;
 	writebuffer_size = WRITEBUFFER_SIZE;
-	while( (c=getopt(argc, argv, "f:dFwWD:P:")) != -1 ){
+	while( (c=getopt(argc, argv, "f:dFwWD:P:Z")) != -1 ){
 		switch(c){
 		case 'f':
 			inputfile_name = optarg;
@@ -55,6 +56,9 @@ int main(int argc, char* argv[]){
 			break;
 		case 'P':// in kb
 			PAGE_SIZE = atoi(optarg) * 1024;
+			break;
+		case 'Z':
+			flag_printdram = 1;
 			break;
 		default:
 			printf("Unknown Parameter %c\n", c);

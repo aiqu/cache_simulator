@@ -1,6 +1,8 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <list>
+#include <map>
+#include <vector>
 
 #ifndef CACHE_H
 #define CACHE_H
@@ -67,6 +69,8 @@ typedef struct cache_impl{
 	int access_latency;
 	int write_time;
 	int read_time;
+
+	std::map<int64_t, std::vector<int> > stat;
 } cache;
 
 void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned int _K, unsigned int _N, size_t ns = 0, size_t nv = 0);

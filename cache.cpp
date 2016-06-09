@@ -140,6 +140,19 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 #ifdef DEBUG
 	printf("tag: %lx\tset index: %lx\tword index: %lx\n", tag, set_index, word_index);
 #endif
+	if(flag_printdram && target->type == DRAM){
+		std::map<int64_t, std::vector<int> >::iterator it;
+		uint64_t ad = bitmerge(target, tag, set_index, word_index);
+		it = target->stat.find(ad);
+		if(it == target->stat.end()){
+			std::vector<int> new_data = std::vector<int>(4, 0);
+			new_data[op]++;
+			target->stat.insert(std::pair<int64_t, std::vector<int> >(ad, new_data));
+		}else{
+			it->second[op]++;
+		}
+	}
+
 	execution_time += target->access_latency;
 	int i;
 	int found = 0;
@@ -590,4 +603,11 @@ void print_extra_component(cache *target){
 		printf("Victim miss: %10u\thit: %10u\n", target->victimbuffer_miss, target->victimbuffer_hit);
 	if(target->writebuffer_size)
 		printf("Writebuffer hit: %10lu\n", target->wbhit);
+	if(flag_printdram && target->stat.size()){
+		FILE* out = fopen("dram.txt", "w");
+		std::map<int64_t, std::vector<int> >::iterator it;
+		for(it = target->stat.begin();it != target->stat.end();it++){
+			fprintf(out, "%"PRIu64"\t%d\t%d\t%d\t%d\n", it->first, it->second[0], it->second[1]+it->second[3], it->second[2], it->second[0]+it->second[1]+it->second[2]+it->second[3]);
+		}
+	}
 }
