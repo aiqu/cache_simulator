@@ -54,6 +54,8 @@ void print_mainmemory(mainmemory* target){
 	if(target->init)
 		return;
 	print_cache(&target->dram);
+
+	check_nand(target);
 }
 
 int mainmemory_access(mainmemory* target, uint64_t addr, int op){
@@ -74,4 +76,10 @@ void put_nand(mainmemory* target, uint64_t addr){
 	if(target->init)
 		return;
 	target->nand.mem.insert(addr);
+}
+
+void check_nand(mainmemory* target){
+	if(target->init)
+		return;
+	printf("%lu page, %luKB(%luMB) used\n", target->nand.mem.size(), target->nand.mem.size() * PAGE_SIZE / 1024, target->nand.mem.size() * PAGE_SIZE / 1024 / 1024);
 }

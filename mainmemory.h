@@ -34,5 +34,6 @@ int mainmemory_access(mainmemory*, uint64_t, int);
 
 void fetch_nand(mainmemory*, uint64_t, int);
 void put_nand(mainmemory*, uint64_t);
+void check_nand(mainmemory*);
 
 #endif
