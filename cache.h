@@ -61,7 +61,8 @@ typedef struct cache_impl{
 
 	std::list<std::pair<uint64_t, uint64_t> > writebuffer;
 	int writebuffer_size;
-	uint64_t wbhit;
+	uint64_t wbwhit;
+	uint64_t wbrhit;
 
 	const char* name;
 	cache_type type;

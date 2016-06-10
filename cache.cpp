@@ -74,7 +74,8 @@ void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned
 		target->victimbuffer_lru = NULL;
 	}
 
-	target->wbhit = 0;
+	target->wbwhit = 0;
+	target->wbrhit = 0;
 
 	switch((int)ctype){
 	case L1:
@@ -432,7 +433,7 @@ int do_writebuffer(cache* target, uint64_t addr){
 		it++;
 		for(;it != target->writebuffer.end();it++){
 			if(it->first == pgidx){
-				target->wbhit++;
+				target->wbrhit++;
 				return 0;
 			}
 		}
@@ -458,7 +459,7 @@ int put_writebuffer(cache* target, uint64_t addr){
 			it++;
 			for(;it != target->writebuffer.end();it++){
 				if( it->first == pgidx ){
-					target->wbhit++;
+					target->wbwhit++;
 					if(flag_debug)
 						printf("Writebuffer hit\n");
 					return 0;
@@ -598,7 +599,7 @@ void print_cache(cache *target){
 #endif
 	}
 	if(target->writebuffer_size)
-		total_hit += target->wbhit;
+		total_hit += target->wbrhit+target->wbwhit;
 	printf("Total  miss: %10lu\thit: %10lu\n", total_miss, total_hit);
 	//printf("Read miss: %10lu\thit: %10lu\n", total_rmiss, total_rhit);
 	//printf("Write miss: %10lu\thit: %10lu\n", total_wmiss, total_whit);
@@ -611,7 +612,7 @@ void print_extra_component(cache *target){
 	if(target->victimbuffer)
 		printf("Victim miss: %10u\thit: %10u\n", target->victimbuffer_miss, target->victimbuffer_hit);
 	if(target->writebuffer_size)
-		printf("Writebuffer hit: %10lu\n", target->wbhit);
+		printf("WBuff  whit: %10lu\trit: %10lu\n", target->wbwhit, target->wbrhit);
 	if(flag_printdram && target->stat.size()){
 		FILE* out = fopen(outfile_name, "w");
 		std::map<int64_t, std::vector<int> >::iterator it;
