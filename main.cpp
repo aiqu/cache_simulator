@@ -116,12 +116,12 @@ void do_simulation(const char* input_file){
 		return;
 	}
 
-	int count = 0;
+	unsigned long count = 0;
 	do{
 		fscanf(input, "%d %lx\n", &type, &addr);
 		//if(flag_debug)
 			//printf("type: %d, addr: %lx\n", type, addr);
-		statistics(type);
+		//statistics(type);
 		if(type == 2)
 			cache_access(&L1_icache, addr, type);
 		else
@@ -155,7 +155,7 @@ void print_result(){
 	//printf("\n----Operation Summary\n");
 	//printf("Total Count: %u\n\tInstruction read: %u\tData Read: %u\tData Write: %u\n",
 			//ir_count+dr_count+dw_count,ir_count, dr_count, dw_count);
-	printf("\n Total Execution Time:\t%"PRId64"\n", execution_time);
+	printf("\n Total Execution Time:\t%" PRId64 "\n", execution_time);
 	//printf("\n-L1 data cache\n");
 	print_cache(&L1_dcache);
 	//printf("\n-L1 instruction cache\n");
