@@ -66,6 +66,9 @@ int main(int argc, char* argv[]){
 		case 'M':
 			flag_nandsize = 1;
 			break;
+		case 'b':
+			writebuffer_size = atoi(optarg);
+			break;
 		default:
 			printf("Unknown Parameter %c\n", c);
 			break;
