@@ -175,6 +175,7 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 			}
 		}
 	}
+
 	if(!found){
 		if(do_streambuffer(target, tag, set_index, word_index, op)){
 			goto finish;

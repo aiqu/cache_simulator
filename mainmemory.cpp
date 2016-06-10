@@ -19,6 +19,7 @@ int init_mainmemory(mainmemory* target, int dram_size, int nand_size, int writeb
 		printf("PAGE SIZE is %d\n", PAGE_SIZE);
 	if(flag_fullassociative){
 		int dram_k = dram_size / DRAM_L;
+		dram_k -= writebuffer_size;
 		initialize_cache(&target->dram, DRAM, DRAM_L, dram_k, 1);
 	}else{
 		if(dram_size % (DRAM_L * DRAM_K)){
@@ -26,7 +27,7 @@ int init_mainmemory(mainmemory* target, int dram_size, int nand_size, int writeb
 			return 1;
 		}
 		int dram_n = dram_size / (DRAM_L * DRAM_K);
-		dram_n -= DRAM_NS + DRAM_NV;
+		dram_n -= DRAM_NS + DRAM_NV + writebuffer_size;
 		if( dram_n % DRAM_K ){
 			printf("%s fail, dram_n size fault\n", __func__);
 			return 1;
