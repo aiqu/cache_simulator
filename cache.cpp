@@ -98,6 +98,8 @@ void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned
 	}
 
 	target->type = ctype;
+	for(i = 0;i < target->N;i++)
+		target->set[i].fline = std::unordered_map<uint64_t, int>();
 }
 
 void free_cache(cache *target){
@@ -155,10 +157,29 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 	}
 
 	execution_time += target->access_latency;
-	int i;
 	int found = 0;
-	for(i = 0;i < target->K;i++){
-		cline *cur = &(target->set[set_index].line[i]);
+	//int i;
+	//for(i = 0;i < target->K;i++){
+		//cline *cur = &(target->set[set_index].line[i]);
+		//if(cur->valid){
+			//if(cur->tag == tag){
+				//cur->hit_count++;
+				//found = 1;
+				//if(op == 1 || op == 3){
+					//cur->dirty = 1;
+					//execution_time += target->write_time;
+					//cur->whit++;
+				//}else{
+					//execution_time += target->read_time;
+					//cur->rhit++;
+				//}
+				//break;
+			//}
+		//}
+	//}
+	auto it = target->set[set_index].fline.find(tag);
+	if(it != target->set[set_index].fline.end()){
+		cline *cur = &(target->set[set_index].line[it->second]);
 		if(cur->valid){
 			if(cur->tag == tag){
 				cur->hit_count++;
@@ -171,7 +192,6 @@ void cache_access_impl(cache *target, uint64_t tag, uint64_t set_index, uint64_t
 					execution_time += target->read_time;
 					cur->rhit++;
 				}
-				break;
 			}
 		}
 	}
@@ -411,6 +431,8 @@ void fetch_dram(cache* target, uint64_t tag, uint64_t set_index, uint64_t word_i
 	cur->line[i].valid = 1;
 	cur->line[i].dirty = 0;
 
+	target->set[set_index].fline[tag] = i;
+
 	//finally, add read time for returning requested value
 	execution_time += target->read_time;
 }
@@ -543,6 +565,8 @@ void fetch(cache *target, uint64_t tag, uint64_t set_index, uint64_t word_index,
 	cur->line[i].valid = 1;
 	cur->line[i].dirty = 0;
 
+	cur->fline[tag] = i;
+
 	//finally, add read time for returning requested value
 	execution_time += target->read_time;
 }
@@ -618,7 +642,7 @@ void print_extra_component(cache *target){
 		FILE* out = fopen(outfile_name, "w");
 		std::map<int64_t, std::vector<int> >::iterator it;
 		for(it = target->stat.begin();it != target->stat.end();it++){
-			fprintf(out, "%"PRIu64"\t%d\t%d\t%d\t%d\n", it->first, it->second[0], it->second[1]+it->second[3], it->second[2], it->second[0]+it->second[1]+it->second[2]+it->second[3]);
+			fprintf(out, "%" PRIu64 "\t%d\t%d\t%d\t%d\n", it->first, it->second[0], it->second[1]+it->second[3], it->second[2], it->second[0]+it->second[1]+it->second[2]+it->second[3]);
 		}
 	}
 }

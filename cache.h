@@ -3,6 +3,7 @@
 #include <list>
 #include <map>
 #include <vector>
+#include <unordered_map>
 
 #ifndef CACHE_H
 #define CACHE_H
@@ -31,6 +32,7 @@ typedef struct cache_line{
 
 typedef struct cache_set{
 	cline *line;
+	std::unordered_map<uint64_t, int> fline;
 	uint64_t miss_count;
 	uint64_t rmiss;
 	uint64_t wmiss;

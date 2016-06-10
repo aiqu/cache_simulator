@@ -10,6 +10,7 @@ OBJS=$(SRCS:.cpp=.o)
 DEPFILE=.dep
 TARGET=cache
 CC=g++
+CXXFLAGS+=-std=c++11
 
 all:	$(TARGET)
 
