@@ -33,7 +33,7 @@ int main(int argc, char* argv[]){
 	dram_size = DRAM_SIZE;
 	nand_size = NAND_SIZE;
 	writebuffer_size = WRITEBUFFER_SIZE;
-	while( (c=getopt(argc, argv, "f:dFwWD:P:Z:")) != -1 ){
+	while( (c=getopt(argc, argv, "f:dFwWD:P:Z:Mb:")) != -1 ){
 		switch(c){
 		case 'f':
 			inputfile_name = optarg;
