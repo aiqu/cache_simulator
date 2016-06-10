@@ -88,7 +88,7 @@ void initialize_cache(cache *target, cache_type ctype, unsigned int _L, unsigned
 		target->write_time = 1;
 		break;
 	case DRAM:
-		target->access_latency = 200000;
+		target->access_latency = 200;
 		target->read_time = 10;
 		target->write_time = 10;
 		break;
@@ -418,6 +418,14 @@ void evict_dram(cache* target, cline* cur, uint64_t addr){
 	}
 }
 int do_writebuffer(cache* target, uint64_t addr){
+	std::list<std::pair<uint64_t, uint64_t> >::iterator it = target->writebuffer.begin();
+	//first, preprocess expired writebuffer elements
+	for(;it != target->writebuffer.end();it++){
+		if(it->second <= execution_time){
+			it = target->writebuffer.erase(it);
+		}
+	}
+
 	if(target->writebuffer.size() > 1){
 		uint64_t pgidx = addr / PAGE_SIZE;
 		std::list<std::pair<uint64_t, uint64_t> >::iterator it = target->writebuffer.begin();
@@ -437,8 +445,9 @@ int put_writebuffer(cache* target, uint64_t addr){
 		std::list<std::pair<uint64_t, uint64_t> >::iterator it = target->writebuffer.begin();
 		//first, preprocess expired writebuffer elements
 		for(;it != target->writebuffer.end();it++){
-			if(it->second <= execution_time)
+			if(it->second <= execution_time){
 				it = target->writebuffer.erase(it);
+			}
 		}
 		uint64_t pgidx = addr/PAGE_SIZE;
 		//second, look up existing writebuffer entries which writting to same pages

@@ -73,13 +73,13 @@ void fetch_nand(mainmemory *target, uint64_t addr, int op){
 }
 
 void put_nand(mainmemory* target, uint64_t addr){
-	if(target->init)
+	if(target->init || !flag_nandsize)
 		return;
 	target->nand.mem.insert(addr);
 }
 
 void check_nand(mainmemory* target){
-	if(target->init)
+	if(target->init || !flag_nandsize)
 		return;
 	printf("%lu page, %luKB(%luMB) used\n", target->nand.mem.size(), target->nand.mem.size() * PAGE_SIZE / 1024, target->nand.mem.size() * PAGE_SIZE / 1024 / 1024);
 }

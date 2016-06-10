@@ -14,6 +14,7 @@ int flag_streambuffer = 0;
 int flag_writel2 = 0;
 int flag_writedram = 0;
 int flag_printdram = 0;
+int flag_nandsize = 0;
 char* outfile_name = NULL;
 int64_t execution_time = 0;
 unsigned int ir_count = 0;
@@ -62,6 +63,9 @@ int main(int argc, char* argv[]){
 			flag_printdram = 1;
 			outfile_name = optarg;
 			break;
+		case 'M':
+			flag_nandsize = 1;
+			break;
 		default:
 			printf("Unknown Parameter %c\n", c);
 			break;
@@ -109,6 +113,7 @@ void do_simulation(const char* input_file){
 		return;
 	}
 
+	int count = 0;
 	do{
 		fscanf(input, "%d %lx\n", &type, &addr);
 		//if(flag_debug)
